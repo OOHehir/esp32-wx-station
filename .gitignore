@@ -13,7 +13,9 @@ sdkconfig.local.*
 managed_components/
 dependencies.lock
 
-# Host tests
+# Host tests. .cache holds the pinned cJSON that run_tests.sh fetches when this tree has
+# no managed_components/ -- a build artefact, not a dependency to commit.
+.cache/
 test/host/run_tests
 test/host/*.dSYM
 

@@ -6,6 +6,13 @@
 # state machine and the NVS wrappers are deliberately absent -- testing them would mean
 # mocking most of ESP-IDF, and the mocks would be what got tested.
 
+# Where cJSON comes from. The default is the copy an `idf.py build` leaves behind, which
+# is what a developer who has built the firmware already has -- but that directory is
+# gitignored, so a fresh clone does not have it & this Makefile cannot conjure it. Then
+# tools/run_tests.sh fetches a pinned copy & passes the path in. Run make directly in a
+# tree that has neither & the error below says so rather than reporting a missing rule.
+CJSON_DIR ?= ../../managed_components/espressif__cjson/cJSON
+
 CC      ?= cc
 CFLAGS  ?= -std=c11 -Wall -Wextra -Werror -O1 -g -fsanitize=address,undefined
 CPPFLAGS = -I. -I../../components/app_httpd/priv_include \
@@ -14,7 +21,7 @@ CPPFLAGS = -I. -I../../components/app_httpd/priv_include \
            -I../../components/app_gfx/include \
            -I../../components/app_wx/include \
            -I../../components/app_wx/priv_include \
-           -I../../managed_components/espressif__cjson/cJSON \
+           -I$(CJSON_DIR) \
            -I../../components/app_ui/include
 LDFLAGS  = -fsanitize=address,undefined
 
@@ -31,7 +38,7 @@ UNITS = ../../components/app_httpd/json_util.c \
         ../../components/app_wx/wx_series.c \
         ../../components/app_wx/wx_parse.c \
         ../../components/app_wx/wx_location.c \
-        ../../managed_components/espressif__cjson/cJSON/cJSON.c \
+        $(CJSON_DIR)/cJSON.c \
         ../../components/app_ui/app_ui.c
 TESTS = main.c test_json_util.c test_dns_pack.c test_update_policy.c \
         test_rollback_policy.c test_sha_hex.c test_mqtt_cmd.c \
@@ -47,6 +54,12 @@ check: $(BIN)
 
 $(BIN): $(UNITS) $(TESTS) test.h
 	$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ $(UNITS) $(TESTS) $(LDFLAGS)
+
+$(CJSON_DIR)/cJSON.c:
+	@echo "error: no cJSON at $(CJSON_DIR)" >&2
+	@echo "       Run ./tools/run_tests.sh, which fetches a pinned copy, or build the" >&2
+	@echo "       firmware once so the component manager writes managed_components/." >&2
+	@false
 
 # Renders every app_ui mode to /tmp so the layout can be looked at rather than reasoned
 # about. See the comment at the top of render_ui.c.
