@@ -1,0 +1,51 @@
+menu "app_wx -- the forecast"
+
+config APP_WX_ENABLE
+    bool "Fetch a forecast from Open-Meteo"
+    default y
+    select MBEDTLS_CERTIFICATE_BUNDLE
+    help
+        The weather client. Switch it off to build a device that drives the panel from
+        nothing but its own state -- useful on the bench, and the configuration the
+        display code has to keep working in anyway.
+
+        Selects the root certificate bundle because this is the connection that leaves
+        the LAN (PLAN 1a). The OTA anchor is a separate decision and is untouched: a
+        device can pin a private CA for its firmware server and still verify Open-Meteo
+        against public roots. About 64 KB of flash.
+
+# Outside the guard on purpose: app_display draws this whether or not a forecast can be
+# fetched, and a symbol that vanishes when a feature is switched off breaks the build of
+# the configuration nobody runs until CI does.
+config APP_WX_PLACE
+    string "Place name, for the panel"
+    default "Dublin"
+    help
+        Drawn on the display. Purely cosmetic: the forecast comes from the coordinates
+        below, and nothing checks that this name describes them.
+
+if APP_WX_ENABLE
+
+config APP_WX_LATITUDE
+    string "Latitude"
+    default "53.3331"
+    help
+        Decimal degrees. Open-Meteo takes coordinates, never a place name, so there is no
+        city lookup at run time -- confirm a new location against
+        https://geocoding-api.open-meteo.com/v1/search?name=... before compiling it in.
+        The default is Dublin city centre (PLAN 9.3).
+
+config APP_WX_LONGITUDE
+    string "Longitude"
+    default "-6.2489"
+
+config APP_WX_HTTP_TIMEOUT_MS
+    int "HTTP timeout (ms)"
+    default 10000
+    help
+        The whole request, not per byte. A forecast that is late is not worth a task
+        blocked on it: the panel already has a cached one to show, marked stale.
+
+endif
+
+endmenu

@@ -1,0 +1,148 @@
+# PLAN §1a: CI builds a matrix of targets so a chip-specific assumption breaks the build
+# the day it lands, not months later.
+#
+# The matrix spans both instruction sets and both LED backends, which is where per-chip
+# divergence actually shows up. The IDF version is pinned to the tag the project targets;
+# bumping it is a deliberate change, not something that happens because upstream moved.
+
+name: build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  IDF_VERSION: v6.0.2
+
+jobs:
+  tests:
+    # Runs first and takes seconds. No ESP-IDF, no toolchain, no hardware.
+    name: host tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./tools/run_tests.sh
+
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    needs: tests
+    strategy:
+      fail-fast: false        # one broken target should not hide the others
+      matrix:
+        target: [esp32s3, esp32c6, esp32]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0      # PROJECT_VER comes from `git describe`, which needs tags
+
+      - name: Generate throwaway keys and CA
+        # Neither the signing key nor the OTA server's CA is in git, and neither should
+        # be: the device trusts whatever CA is embedded and whatever key signed the
+        # image, so shipping either would have every fork pinning someone else's. CI
+        # makes fresh ones per run, which is why its artifacts are NOT installable on a
+        # real device -- the correct outcome for a public runner.
+        run: |
+          ./tools/gen_signing_key.sh
+          ./tools/gen_certs.sh ci.example 127.0.0.1
+
+      - name: Build
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: ${{ env.IDF_VERSION }}
+          target: ${{ matrix.target }}
+
+      - name: Report image size
+        run: |
+          python -c "
+          import json
+          d = json.load(open('build/project_description.json'))
+          print(f\"{d['project_name']} {d['project_version']} ({d['target']})\")
+          "
+          ls -l build/*.bin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.target }}
+          path: |
+            build/*.bin
+            build/project_description.json
+          if-no-files-found: error
+
+  build-no-webui:
+    # The device web UI is an unauthenticated control surface (PLAN §7), so compiling it
+    # out has to keep working. It is the escape hatch for anything that leaves a lab.
+    name: esp32s3 (web UI disabled)
+    runs-on: ubuntu-latest
+    needs: tests
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: ./tools/gen_signing_key.sh && ./tools/gen_certs.sh ci.example 127.0.0.1
+      - run: echo "CONFIG_APP_HTTPD_ENABLE=n" >> sdkconfig.defaults
+      - uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: ${{ env.IDF_VERSION }}
+          target: esp32s3
+
+  build-cert-bundle:
+    # PLAN §3 offers two trust anchors and the template has to keep supporting both. This
+    # build also proves the claim in app_ota's CMakeLists: in bundle mode nothing embeds
+    # server_certs/ca_cert.pem, so a tree without one still builds.
+    name: esp32s3 (public root bundle)
+    runs-on: ubuntu-latest
+    needs: tests
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Deliberately NO gen_certs.sh here: bundle mode must build with no CA present.
+      - run: ./tools/gen_signing_key.sh
+      - run: echo "CONFIG_APP_TRUST_CERT_BUNDLE=y" >> sdkconfig.defaults
+      - uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: ${{ env.IDF_VERSION }}
+          target: esp32s3
+
+  build-mqtt:
+    # PLAN §8's broker link is off by default, so nothing else in CI compiles it. Build it
+    # here, or the component quietly rots -- and with it the app_trust indirection that
+    # exists precisely because two components need the same certificate.
+    name: esp32s3 (MQTT enabled)
+    runs-on: ubuntu-latest
+    needs: tests
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: ./tools/gen_signing_key.sh && ./tools/gen_certs.sh ci.example 127.0.0.1
+      - run: echo "CONFIG_APP_MQTT_ENABLE=y" >> sdkconfig.defaults
+      - uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: ${{ env.IDF_VERSION }}
+          target: esp32s3
+
+  build-unsigned:
+    # Signing and rollback are both defaults, not requirements, and a project forked from
+    # this template may well turn one off. Build with both off so the #if paths that only
+    # exist in that configuration -- app_ota's probation handling, selftest.c -- keep
+    # compiling, rather than rotting until somebody needs them.
+    name: esp32s3 (unsigned, no rollback)
+    runs-on: ubuntu-latest
+    needs: tests
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: ./tools/gen_certs.sh ci.example 127.0.0.1
+      - run: |
+          echo "CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=n" >> sdkconfig.defaults
+          echo "CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES=n" >> sdkconfig.defaults
+          echo "CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=n"    >> sdkconfig.defaults
+      - uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: ${{ env.IDF_VERSION }}
+          target: esp32s3

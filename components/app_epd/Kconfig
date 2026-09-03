@@ -1,0 +1,70 @@
+menu "app_epd -- the ePaper panel"
+
+config APP_EPD_ENABLE
+    bool "Drive a UC8159 ePaper panel"
+    default y
+    help
+        The Pimoroni Inky Impression 5.7", 600x448, seven colours, UC8159 controller.
+        Switch it off to build the firmware without a panel attached.
+
+comment "Pins -- defaults are the Seeed XIAO ESP32-C3 (PLAN 3b)"
+
+config APP_EPD_SCLK_GPIO
+    int "SCLK"
+    default 8
+    help
+        XIAO D8. Also an ESP32-C3 strapping pin, which must be high at reset. SCLK is an
+        output here and the panel's SCLK is high impedance, so the line should float --
+        but if boot becomes intermittent, a 10k pull-up to 3v3 on this pin is the first
+        thing to try.
+
+config APP_EPD_MOSI_GPIO
+    int "MOSI"
+    default 10
+
+config APP_EPD_CS_GPIO
+    int "Chip select"
+    default 3
+
+config APP_EPD_DC_GPIO
+    int "Data/command"
+    default 4
+
+config APP_EPD_RST_GPIO
+    int "Reset"
+    default 5
+
+config APP_EPD_BUSY_GPIO
+    int "Busy"
+    default 6
+    help
+        Driven by the panel, low while it is working.
+
+        Must NOT be GPIO9 or GPIO2 on an ESP32-C3: both are strapping pins, and GPIO9 low
+        at reset puts the chip into download mode. The panel holds BUSY low exactly while
+        the board is coming up, so that combination gives a board which boots only
+        sometimes with nothing on the console to explain it.
+
+if APP_EPD_ENABLE
+
+config APP_EPD_SPI_HZ
+    int "SPI clock (Hz)"
+    default 10000000
+    help
+        Pimoroni's driver uses 3 MHz on this panel and Soldered's uses 10 MHz on the same
+        controller. 3 MHz was the conservative start; 10 MHz is what this board actually
+        runs, measured rather than assumed.
+
+        Measured on the bench board with a dozen jumper wires, which is the worst case a
+        ribbon will ever be: the 134 400-byte transfer takes 375 ms at 3 MHz and 118 ms at
+        10 MHz, and both refresh correctly. PLAN 3c predicted 360 and 110.
+
+        It is worth keeping in proportion. The saving is about a quarter of a second
+        against a refresh that takes 26 seconds of physics, so this is not why the panel
+        is slow and never will be. Drop back to 3000000 if a longer or untidier ribbon
+        starts producing corrupt frames -- the symptom would be a picture with the right
+        colours in the wrong places, not a blank panel.
+
+endif
+
+endmenu

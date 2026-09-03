@@ -1,0 +1,21 @@
+# Partition table for 4 MB flash. Two OTA slots, no factory app.
+#
+# Selected by CONFIG_PARTITION_TABLE_CUSTOM_FILENAME in sdkconfig.defaults.<target>;
+# cmake/check_partitions.cmake asserts the choice matches CONFIG_ESPTOOLPY_FLASHSIZE.
+#
+# ~1.9 MB per app slot. Workable, but tight once TLS, provisioning and the web UI are
+# all linked in — watch the "app partition is XX% full" line at the end of a build.
+#
+# The coredump partition is carved out of the tail of storage rather than moved from
+# anywhere earlier: every offset above it is unchanged, so a device already in the field
+# keeps booting the slot it is running. Changing the table still needs a serial flash --
+# OTA cannot rewrite a partition table -- so this reaches deployed devices only by cable.
+#
+# Name,     Type, SubType,  Offset,   Size,     Flags
+nvs,        data, nvs,      0x9000,   0x6000,
+otadata,    data, ota,      0xf000,   0x2000,
+phy_init,   data, phy,      0x11000,  0x1000,
+ota_0,      app,  ota_0,    0x20000,  0x1D0000,
+ota_1,      app,  ota_1,    0x1F0000, 0x1D0000,
+storage,    data, spiffs,   0x3C0000, 0x30000,
+coredump,   data, coredump, 0x3F0000, 0x10000,

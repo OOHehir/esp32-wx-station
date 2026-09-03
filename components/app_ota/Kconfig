@@ -1,0 +1,156 @@
+menu "app_ota -- firmware updates"
+
+config APP_OTA_ENABLE
+    bool "Enable OTA updates"
+    default y
+
+config APP_OTA_BASE_URL
+    string "Base URL of the firmware server"
+    default "https://nas.lan:8443/fw"
+    depends on APP_OTA_ENABLE
+    help
+        The device fetches <base>/<project>/<chip>/manifest.json, which is exactly the
+        layout tools/publish.sh writes. Keep this in step with OTA_BASE_URL when you run
+        that script, or devices will look somewhere nothing was published.
+
+        Use whichever of the hostname or the IP appears in the server certificate's SAN
+        list -- a mismatch surfaces as a TLS handshake failure that looks like a network
+        fault. An IP avoids depending on the LAN's DNS; a name survives the NAS moving.
+
+config APP_OTA_POLL_ENABLE
+    bool "Poll for updates periodically"
+    default y
+    depends on APP_OTA_ENABLE
+
+config APP_OTA_POLL_INTERVAL_S
+    int "Seconds between update checks"
+    default 21600
+    range 60 604800
+    depends on APP_OTA_POLL_ENABLE
+    help
+        Six hours by default. The interval is jittered so a fleet that all booted after
+        the same power cut does not hit the server in the same second.
+
+config APP_OTA_POLL_JITTER_PCT
+    int "Jitter applied to the poll interval, percent"
+    default 20
+    range 0 50
+    depends on APP_OTA_POLL_ENABLE
+
+config APP_OTA_HTTP_TIMEOUT_MS
+    int "HTTP timeout, milliseconds"
+    default 15000
+    depends on APP_OTA_ENABLE
+    help
+        Applies per socket operation, not to the whole download -- a 900 KB image over
+        poor Wi-Fi legitimately takes minutes.
+
+config APP_OTA_REQUIRE_TIME_SYNC
+    bool "Refuse to start an update before the clock is set"
+    default y
+    depends on APP_OTA_ENABLE
+    help
+        Certificate validity cannot be checked on a device that thinks it is 1970, so
+        without this the first TLS handshake fails in a way that looks like a network
+        problem (PLAN §7). Turning it off is only sensible on a network with no route to
+        any time source, and then you are trusting an unvalidated clock.
+
+config APP_OTA_TIME_SYNC_WAIT_S
+    int "Seconds to wait for the clock before giving up on a check"
+    default 45
+    range 0 300
+    depends on APP_OTA_REQUIRE_TIME_SYNC
+    help
+        SNTP timing varies with whether the DHCP-supplied server answers -- 7 s and 90 s
+        have both been observed on the same network. Waiting turns a check triggered just
+        after boot from a spurious failure into a short delay.
+
+config APP_OTA_RESTART_DELAY_MS
+    int "Delay before restarting into a new image, milliseconds"
+    default 2000
+    depends on APP_OTA_ENABLE
+    help
+        Long enough for the web UI to poll /api/status once more and show that the
+        update finished, rather than the page simply dying mid-request.
+
+config APP_OTA_TASK_STACK
+    int "OTA task stack size"
+    default 8192
+    depends on APP_OTA_ENABLE
+    help
+        TLS needs room. Below about 6 KB the handshake overflows this stack rather than
+        failing cleanly.
+
+config APP_OTA_REQUIRE_SHA256
+    bool "Refuse an image whose sha256 the manifest did not publish"
+    default y
+    depends on APP_OTA_ENABLE
+    help
+        The written slot is hashed and compared with the manifest before the slot is
+        marked bootable. tools/publish.sh always writes the field, so a manifest without
+        one is either hand-edited or half-written -- and a half-written manifest next to
+        a half-uploaded image is precisely the case worth refusing.
+
+        Turning this off downgrades a missing hash to a warning. A hash that is present
+        and wrong is always fatal, either way.
+
+config APP_OTA_MAX_FAILURES
+    int "Attempts before a version is left alone"
+    default 2
+    range 0 10
+    depends on APP_OTA_ENABLE
+    help
+        A version that has been installed this many times and never survived its
+        self-test is skipped by the periodic poll. Without it, one bad build published to
+        the NAS means every device downloads 900 KB, reboots, rolls back and does it
+        again on every poll, for as long as it stays published.
+
+        Pressing "Check for updates" retries it anyway -- the quarantine is there to stop
+        automation looping, not to stop a human. 0 disables it entirely.
+
+menu "Self-test -- what a new image must prove"
+    depends on APP_OTA_ENABLE && BOOTLOADER_APP_ROLLBACK_ENABLE
+
+comment "Rollback is off; a new image is never put on probation"
+    depends on !BOOTLOADER_APP_ROLLBACK_ENABLE
+
+config APP_OTA_SELFTEST_MIN_UPTIME_S
+    int "Seconds the image must run before it can be confirmed"
+    default 120
+    range 0 3600
+    help
+        Confirming an image cancels the rollback, so it should not happen in the first
+        second of the first boot. Long enough to catch a crash during start-up, short
+        enough that a device is not left one reset away from reverting a good image.
+
+config APP_OTA_SELFTEST_REQUIRE_SERVER
+    bool "Require the update server to be reachable"
+    default y
+    help
+        Fetches the manifest over TLS as the last step of the self-test. This is the
+        check that matters: it proves the new image can still be *updated*, which is the
+        only property that guarantees a fix can reach the device later.
+
+        Note what it implies. An image that boots perfectly but has broken Wi-Fi, DNS,
+        the clock or the embedded CA fails the self-test and is rolled back -- correctly,
+        because a device that cannot be updated is a device that needs a cable. The cost
+        is that a good image also rolls back on a device whose *network* is genuinely
+        gone, and it will be offered again once the network is back.
+
+config APP_OTA_SELFTEST_TIMEOUT_S
+    int "Seconds to reach all of the above before giving up"
+    default 600
+    range 60 7200
+    help
+        Ten minutes. Generous on purpose: SNTP alone has been seen to take 90 s, and a
+        device that boots before its access point does should be given time to associate
+        rather than reverting a perfectly good image.
+
+config APP_OTA_SELFTEST_RETRY_S
+    int "Seconds between server probes during the self-test"
+    default 30
+    range 5 600
+
+endmenu
+
+endmenu

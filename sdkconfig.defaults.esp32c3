@@ -1,0 +1,25 @@
+# ESP32-C3 -- Seeed XIAO ESP32-C3.
+#
+# Bench board: XIAO ESP32-C3, ESP32-C3 QFN32 rev v0.4, embedded 4 MB flash (XMC).
+# `esptool flash-id` reports no PSRAM; the module has none.
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_4mb.csv"
+
+# Console on USB-Serial-JTAG, not UART0.
+#
+# The template's C3 defaults were written for an ESP32-C3-DevKitM-1, which exposes UART0
+# on a bridge chip. The XIAO does not: GPIO18/19 go to the USB-C socket and UART0 lands on
+# GPIO20/21, which are ordinary castellations with nothing attached. Left as UART0 the
+# board boots and runs correctly while printing into a pin nobody is listening to -- the
+# ROM banner arrives over USB and then silence, which reads exactly like a hang.
+#
+# Observed on this board before the change: 31 bytes captured from /dev/ttyACM0, all of
+# them the ROM banner.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# No status LED.
+#
+# The template's C3 defaults drive an addressable LED on GPIO8, which is a DevKitM-1
+# detail. On the XIAO, GPIO8 is D8 -- a strapping pin, and the pin PLAN 3b assigns to the
+# panel's SCLK. Driving it from app_led would fight the display driver for the same line.
+CONFIG_APP_LED_TYPE_NONE=y

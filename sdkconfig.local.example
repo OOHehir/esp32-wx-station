@@ -1,0 +1,35 @@
+# Site-specific build settings & secrets, layered over the tracked defaults.
+#
+# Copy to `sdkconfig.local`, which is gitignored, & edit there:
+#
+#     cp sdkconfig.local.example sdkconfig.local
+#
+# Nothing in *this* file may be a real credential -- it is committed. ESP-IDF also loads
+# `sdkconfig.local.<target>`, so per-chip overrides layer the same way. The full
+# precedence order is in the note in CMakeLists.txt.
+
+# --- Where this device fetches its firmware --------------------------------------------
+# The host must appear in the server certificate's SAN list, & must match the
+# OTA_BASE_URL that tools/publish.sh writes into the manifest.
+CONFIG_APP_OTA_BASE_URL="https://nas.lan:8443/fw"
+
+# --- Where the panel points ------------------------------------------------------------
+# Decimal degrees. Confirm a new location against Open-Meteo's geocoding endpoint rather
+# than typing it from memory: https://geocoding-api.open-meteo.com/v1/search?name=...
+CONFIG_APP_WX_PLACE="Dublin"
+CONFIG_APP_WX_LATITUDE="53.3331"
+CONFIG_APP_WX_LONGITUDE="-6.2489"
+
+# --- The provisioning AP's passphrase salt ---------------------------------------------
+# Mixed with the MAC to derive the setup passphrase. The tracked default is published
+# with this repository, & the SSID advertises the MAC -- so a device left on the default
+# has a passphrase anyone can compute. Set your own before commissioning a board.
+CONFIG_APP_CFG_AP_PASS_SALT=""
+
+# --- The broker link, off by default ---------------------------------------------------
+# The password is compiled into the image & shared by the whole fleet, which is why it
+# belongs in an ignored file. tools/gen_mqtt_user.sh generates one & prints it once.
+#CONFIG_APP_MQTT_ENABLE=y
+#CONFIG_APP_MQTT_BROKER_URI="mqtts://nas.lan:8883"
+#CONFIG_APP_MQTT_USERNAME="esp-ota"
+#CONFIG_APP_MQTT_PASSWORD=""

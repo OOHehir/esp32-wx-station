@@ -1,0 +1,7 @@
+dependencies:
+  espressif/led_strip:
+    version: "^3.0.3"
+    # Only the addressable backend links against this, but the dependency is declared
+    # unconditionally: the component manager resolves dependencies before Kconfig is
+    # evaluated, so a conditional here would not do what it looks like it does.
+    # Unused code is dropped by --gc-sections.

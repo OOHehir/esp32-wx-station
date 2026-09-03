@@ -1,0 +1,26 @@
+# ESP32-S3.
+#
+# Bench reference board: ESP32-S3-WROOM-1-N8R8 (QFN56 rev v0.2) on a DevKitC-1. `esptool flash-id` reports 8 MB flash and 8 MB embedded PSRAM.
+#
+# Flash size is a module suffix, not a chip property -- N4/N8/N16 all identify as
+# "ESP32-S3". Re-run `esptool --port <port> flash-id` for a new board and change BOTH
+# lines below together; cmake/check_partitions.cmake enforces that they agree.
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_8mb.csv"
+
+# PSRAM is present on the R8 module but deliberately left disabled: nothing in the
+# template needs it, and enabling it here would make the template's memory behaviour
+# depend on which module you happened to buy.
+
+# Console on UART0. The DevKitC-1 has two USB sockets -- the "UART" one goes through a
+# CP2102N bridge to UART0, the "USB" one is the chip's native USB-Serial-JTAG. Making
+# UART primary keeps the bridge working, and IDF enables USB-Serial-JTAG as a secondary
+# console anyway, so both sockets give you a log.
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+
+# Status LED. The pin moves between revisions of the *same* board, which is exactly the
+# per-target detail PLAN 1a keeps out of application code: DevKitC-1 v1.0 wires the
+# addressable LED to GPIO48, v1.1 to GPIO38. The bench board is a v1.1 -- confirmed the
+# hard way, by GPIO48 driving nothing at all.
+CONFIG_APP_LED_TYPE_ADDRESSABLE=y
+CONFIG_APP_LED_GPIO=38

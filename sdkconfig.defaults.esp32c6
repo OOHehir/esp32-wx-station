@@ -1,0 +1,11 @@
+# ESP32-C6 (RISC-V). Second CI target: an Xtensa/RISC-V pair catches chip-specific
+# assumptions the day they land (PLAN §1a).
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_8mb.csv"
+
+# UART0 primary; IDF adds USB-Serial-JTAG as a secondary console on this part.
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+
+# ESP32-C6-DevKitC-1: addressable LED on GPIO8.
+CONFIG_APP_LED_TYPE_ADDRESSABLE=y
+CONFIG_APP_LED_GPIO=8

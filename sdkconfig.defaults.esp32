@@ -1,0 +1,18 @@
+# ESP32 (classic). No USB-Serial-JTAG on this part, so the console stays on UART0
+# via the board's USB-UART bridge -- one of the conveniences PLAN §1a warns cannot
+# be assumed across targets.
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_4mb.csv"
+
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+
+# DevKitC: a plain GPIO LED on GPIO2, not an addressable one.
+CONFIG_APP_LED_TYPE_GPIO=y
+CONFIG_APP_LED_GPIO=2
+
+# Signing key. A classic ESP32 below revision v3.0 has no RSA secure boot v2, so the app
+# signing scheme falls back to v1 ECDSA (NIST P-256) and the key is a different kind of
+# file from the RSA-3072 one every other target uses. Raising CONFIG_ESP32_REV_MIN to
+# v3.0 would unify them at the cost of refusing to boot on older silicon; keeping the
+# second key keeps those boards supported. See tools/gen_signing_key.sh.
+CONFIG_SECURE_BOOT_SIGNING_KEY="keys/app_signing_ecdsa256.pem"

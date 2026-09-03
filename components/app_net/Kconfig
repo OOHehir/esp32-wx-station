@@ -1,0 +1,61 @@
+menu "app_net -- connectivity and commissioning"
+
+config APP_NET_FALLBACK_DELAY_S
+    int "Seconds without association before raising the provisioning AP"
+    default 120
+    range 10 3600
+    help
+        Applies only when credentials are stored. An unprovisioned device raises the AP
+        immediately -- there is nothing to wait for.
+
+config APP_NET_AP_LINGER_S
+    int "Seconds to keep the AP up after the station associates"
+    default 20
+    range 0 300
+    help
+        The grace period in which the portal can tell whoever just typed a passphrase
+        that it worked. Tearing the AP down the instant credentials are saved turns a
+        mistyped passphrase into a board that silently never appears.
+
+config APP_NET_BACKOFF_MAX_S
+    int "Maximum STA reconnect backoff, seconds"
+    default 60
+    range 5 600
+
+config APP_NET_AP_MAX_STA
+    int "Maximum stations on the provisioning AP"
+    default 4
+    range 1 8
+
+config APP_NET_AP_CHANNEL
+    int "Provisioning AP channel"
+    default 1
+    range 1 13
+    help
+        Ignored once the station associates: in APSTA the AP follows the station's
+        channel, because the radio has only one.
+
+config APP_NET_SNTP_SERVER
+    string "SNTP server"
+    default "pool.ntp.org"
+    help
+        SNTP must succeed before the first TLS handshake or certificate validity checks
+        fail on a device that boots at 1970 (PLAN §7). DHCP-supplied servers are tried
+        as well, which is what makes this work on a LAN with no route to the internet.
+
+config APP_NET_SNTP_FROM_DHCP
+    bool "Also accept SNTP servers offered by DHCP"
+    default y
+
+config APP_NET_MDNS_ENABLE
+    bool "Advertise the device over mDNS"
+    default y
+    help
+        Makes the status page reachable at http://<device-name>.local without anyone
+        having to find the DHCP lease.
+
+config APP_NET_TASK_STACK
+    int "app_net task stack size"
+    default 4096
+
+endmenu

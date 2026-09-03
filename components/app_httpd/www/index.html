@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Device</title>
+<!--
+  One embedded file: no CDN, no framework, no build step. These boards routinely sit on
+  a network with no route to the internet, and anything fetched from outside renders as
+  a broken page exactly when you need to read it.
+-->
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#16191d;--muted:#6b7280;--line:#e3e6ea;
+      --accent:#2563eb;--ok:#15803d;--warn:#b45309;--err:#b91c1c}
+@media(prefers-color-scheme:dark){
+:root{--bg:#0f1216;--card:#171b21;--fg:#e6e8eb;--muted:#9aa3ad;--line:#262c34;
+      --accent:#60a5fa;--ok:#4ade80;--warn:#fbbf24;--err:#f87171}}
+*{box-sizing:border-box}
+body{margin:0;padding:16px;background:var(--bg);color:var(--fg);
+     font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:640px;margin:0 auto}
+h1{font-size:20px;margin:0 0 2px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 16px}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;
+        padding:14px 16px;margin-bottom:14px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
+   margin:0 0 10px;font-weight:600}
+dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:14px}
+dt{color:var(--muted)}
+dd{margin:0;text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+button{flex:1 1 auto;min-width:130px;padding:10px 14px;border-radius:8px;
+       border:1px solid var(--line);background:var(--card);color:var(--fg);
+       font:inherit;font-weight:500;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.danger:hover:not(:disabled){border-color:var(--err);color:var(--err)}
+input,select{width:100%;padding:10px;margin-bottom:8px;border-radius:8px;
+             border:1px solid var(--line);background:var(--bg);color:var(--fg);font:inherit}
+.msg{margin-top:10px;padding:9px 11px;border-radius:8px;font-size:14px;display:none}
+.msg.show{display:block}
+.msg.ok{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok)}
+.msg.warn{background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--warn)}
+.msg.err{background:color-mix(in srgb,var(--err) 14%,transparent);color:var(--err)}
+.pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;
+      font-weight:600;border:1px solid currentColor}
+.pill.ok{color:var(--ok)}.pill.warn{color:var(--warn)}.pill.err{color:var(--err)}
+.note{margin:10px 0 0;font-size:13px;color:var(--muted)}
+.bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:10px}
+.bar>div{height:100%;width:0;background:var(--accent);transition:width .4s ease}
+.hide{display:none}
+footer{color:var(--muted);font-size:12px;text-align:center;padding:4px 0 20px}
+</style>
+</head>
+<body>
+<main>
+  <h1 id="name">&hellip;</h1>
+  <p class="sub" id="sub">connecting to device</p>
+
+  <!-- Shown only while the provisioning AP is up. Same component, same page, one extra
+       view -- not a second web stack. -->
+  <section id="setup" class="hide">
+    <h2>Wi-Fi setup</h2>
+    <select id="ssid"><option value="">Scanning&hellip;</option></select>
+    <input id="ssidManual" class="hide" placeholder="Network name (hidden network)">
+    <input id="pass" type="password" placeholder="Password (leave empty if open)">
+    <div class="row">
+      <button id="rescan">Rescan</button>
+      <button id="join" class="primary">Join network</button>
+    </div>
+    <div class="msg" id="setupMsg"></div>
+  </section>
+
+  <section>
+    <h2>Firmware</h2>
+    <dl id="fw"></dl>
+    <div class="msg" id="pending"></div>
+  </section>
+
+  <!-- Only ever shown when there is a crash to report. A permanently visible "no
+       crashes" panel is furniture; a panel that appears is information. -->
+  <section id="crashPanel" class="hide">
+    <h2>Last crash</h2>
+    <dl id="crashRows"></dl>
+    <div class="msg" id="crashMsg"></div>
+    <div class="row">
+      <button id="crashErase" class="danger">Erase crash dump</button>
+      <a id="crashDl" class="hide" href="/api/coredump.bin">Download dump</a>
+    </div>
+  </section>
+
+  <section>
+    <h2>Network</h2>
+    <dl id="net"></dl>
+  </section>
+
+  <section id="otaPanel" class="hide">
+    <h2>Update</h2>
+    <dl id="otaRows"></dl>
+    <div class="bar hide" id="otaBarWrap"><div id="otaBar"></div></div>
+    <div class="msg" id="otaMsg"></div>
+  </section>
+
+  <section id="panelPanel" class="hide">
+    <h2>Panel</h2>
+    <dl id="panelRows"></dl>
+    <input id="place" placeholder="Place name, shown on the panel" maxlength="31">
+    <input id="lat" placeholder="Latitude, e.g. 53.3574">
+    <input id="lon" placeholder="Longitude, e.g. -6.4486">
+    <div class="row">
+      <button id="saveLoc">Save location</button>
+      <button id="redraw">Refresh now</button>
+    </div>
+    <div class="msg" id="panelMsg"></div>
+  </section>
+
+  <section>
+    <h2>Actions</h2>
+    <div class="row">
+      <button id="ota">Check for updates</button>
+      <button id="led">Toggle LED</button>
+      <button id="restart" class="danger">Restart</button>
+    </div>
+    <div class="msg" id="actionMsg"></div>
+    <p class="note hide" id="otaNote"></p>
+  </section>
+
+  <footer id="foot"></footer>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let state = null, joining = false;
+
+function msg(el, text, kind){
+  el.textContent = text;
+  el.className = 'msg show ' + (kind || 'ok');
+}
+function clearMsg(el){ el.className = 'msg'; }
+
+function rows(el, pairs){
+  el.innerHTML = '';
+  for (const [k, v] of pairs){
+    if (v === null || v === undefined) continue;
+    const dt = document.createElement('dt'); dt.textContent = k;
+    const dd = document.createElement('dd');
+    if (v instanceof Node) dd.appendChild(v); else dd.textContent = v;
+    el.append(dt, dd);
+  }
+}
+function pill(text, kind){
+  const s = document.createElement('span');
+  s.className = 'pill ' + kind; s.textContent = text;
+  return s;
+}
+function dur(s){
+  s = Math.floor(s);
+  const d = Math.floor(s/86400), h = Math.floor(s%86400/3600),
+        m = Math.floor(s%3600/60), sec = s%60;
+  if (d) return `${d}d ${h}h`;
+  if (h) return `${h}h ${m}m`;
+  if (m) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+async function api(path, opts){
+  const r = await fetch(path, opts);
+  let body = null;
+  try { body = await r.json(); } catch (e) {}
+  if (!r.ok) throw new Error((body && body.error) || r.status + ' ' + r.statusText);
+  return body;
+}
+
+function render(s){
+  state = s;
+  $('name').textContent = s.device.name;
+  $('sub').textContent  = `${s.device.chip} · ${s.firmware.version}`;
+  document.title = s.device.name;
+
+  renderPanel(s.panel);
+
+  rows($('fw'), [
+    ['Version',   s.firmware.version],
+    ['Slot',      s.firmware.partition],
+    ['Built',     s.firmware.built],
+    ['ESP-IDF',   s.firmware.idf],
+    ['Uptime',    dur(s.runtime.uptime_s)],
+    ['Boot count', s.runtime.boot_count],
+    ['Last reset', s.runtime.reset_reason],
+    ['Free heap', (s.runtime.heap_free/1024).toFixed(1) + ' KiB'],
+  ]);
+
+  /* The one place a human can watch the rollback self-test decide. PLAN §4a: this turns
+     the most confusing failure mode in the design into something visible. */
+  if (s.firmware.pending_verify){
+    const left = s.ota.selftest_left_s;
+    msg($('pending'),
+        'This image is on probation (PENDING_VERIFY). The bootloader will revert to the '
+        + 'previous slot on the next reset unless the self-test confirms it'
+        + (left > 0 ? `, and the self-test has ${dur(left)} left to pass.`
+                    : '.'), 'warn');
+  }
+  else clearMsg($('pending'));
+
+  const connected = s.net.state === 'connected';
+  rows($('net'), [
+    ['State',   pill(s.net.state, connected ? 'ok' : (s.net.ap_active ? 'warn' : 'err'))],
+    ['Network', s.net.ssid || '—'],
+    ['IP',      s.net.ip || '—'],
+    ['Signal',  connected ? s.net.rssi + ' dBm' : null],
+    ['Retries', s.net.retries || null],
+    ['Clock',   s.net.time_synced
+                  ? pill('synced', 'ok')
+                  : pill('not synced', 'warn')],
+    ['Setup AP', s.net.ap_active ? s.net.ap_ssid + ' · ' + s.net.ap_ip : null],
+  ]);
+
+  $('setup').classList.toggle('hide', !s.net.ap_active);
+  if (s.net.ap_active && !$('ssid').dataset.loaded) scan();
+
+  if (joining) reportJoin(s);
+
+  renderOta(s.ota);
+  refreshCrash();
+
+  /* Say why the button is dead, in the page itself. A title tooltip explains nothing on
+     a phone, and a phone is where this page is meant to be read. */
+  $('ota').disabled = !s.ota.available || s.ota.probation
+                                       || s.ota.state === 'checking'
+                                       || s.ota.state === 'downloading';
+  const note = !s.ota.available
+      ? 'Firmware updates are not built into this image yet, so Check for updates is '
+        + 'disabled. The device cannot fetch a new version on its own until they are.'
+      : s.ota.probation
+      ? 'Check for updates is disabled while this image is on probation: a new image '
+        + 'cannot be installed on top of one that has not been confirmed yet.'
+      : '';
+  $('otaNote').classList.toggle('hide', !note);
+  $('otaNote').textContent = note;
+  $('led').disabled = !s.led.present;
+  $('led').textContent = s.led.present
+      ? (s.led.manual ? (s.led.on ? 'LED on (held)' : 'LED off (held)') : 'Toggle LED')
+      : 'No LED';
+
+  $('foot').textContent = `${s.device.id} · ${s.led.status}`;
+
+  /* A 2 s poll makes a download look stalled; 700 ms while one is running is cheap and
+     the device is busy with the network anyway. */
+  setPace(s.ota.state === 'downloading' ? 700 : 2000);
+}
+
+/* The location inputs are filled from the device only while they are not being edited.
+ * The status poll runs every few seconds, and overwriting a half-typed longitude with the
+ * old one on every tick makes the form impossible to use. */
+function renderPanel(p){
+  if (!p){ $('panelPanel').classList.add('hide'); return; }
+  $('panelPanel').classList.remove('hide');
+
+  rows($('panelRows'), [
+    ['Panel',     p.present ? 'connected' : pill('not detected', 'bad')],
+    ['Showing',   p.mode],
+    ['Refreshes', p.refreshes],
+    ['Skipped',   p.skipped + ' (frame unchanged)'],
+    ['Last refresh', p.last_refresh_uptime_s < 0
+                     ? 'not yet this boot'
+                     : dur(p.last_refresh_ms / 1000) + ', at ' + dur(p.last_refresh_uptime_s) + ' uptime'],
+  ]);
+
+  for (const [id, v] of [['place', p.place], ['lat', p.latitude], ['lon', p.longitude]]){
+    if (document.activeElement !== $(id)) $(id).value = v || '';
+  }
+}
+
+function renderOta(o){
+  /* Nothing to show before the first check: an empty Update panel on every page load
+     would just be furniture. */
+  const show = o.available && ((o.state && o.state !== 'idle') || o.probation
+                              || !!o.failed_version);
+  $('otaPanel').classList.toggle('hide', !show);
+  if (!show) return;
+
+  const downloading = o.state === 'downloading';
+  const label = {selftest:'Self-test', checking:'Checking', up_to_date:'Up to date',
+                 downloading:'Downloading', ready:'Installed', failed:'Failed'}[o.state]
+                || o.state;
+  const kind  = {up_to_date:'ok', ready:'ok', failed:'err'}[o.state] || 'warn';
+
+  const quarantined = o.failed_version && o.max_failures > 0
+                      && o.failed_count >= o.max_failures;
+
+  rows($('otaRows'), [
+    ['Status',    pill(label, kind)],
+    ['Running',   o.running || null],
+    ['Available', (o.offered && o.offered !== o.running) ? o.offered : null],
+    ['Progress',  downloading && o.total
+                    ? `${(o.written/1024).toFixed(0)} / ${(o.total/1024).toFixed(0)} KiB`
+                    : null],
+    ['Self-test', o.probation && o.selftest_left_s > 0
+                    ? `${dur(o.selftest_left_s)} left to pass`
+                    : null],
+    ['Last failed', o.failed_version
+                    ? `${o.failed_version} · ${o.failed_count} attempt`
+                      + (o.failed_count === 1 ? '' : 's')
+                    : null],
+  ]);
+
+  /* A determinate bar only when the server gave a length; a device on a chunked
+     response should not show a progress bar that cannot progress. */
+  const bar = downloading && o.progress >= 0;
+  $('otaBarWrap').classList.toggle('hide', !bar);
+  if (bar) $('otaBar').style.width = o.progress + '%';
+
+  if (o.message) msg($('otaMsg'), o.message, kind);
+  else clearMsg($('otaMsg'));
+
+  if (o.state === 'ready')
+    msg($('otaMsg'), (o.message || 'Update installed.')
+        + ' The device is restarting; this page will reconnect on its own.', 'ok');
+
+  /* Last, so it wins: a quarantine is the one thing here a human has to act on. The
+     device has decided on its own to stop taking what the server offers, and the
+     state message underneath it ("v0.4.0 failed to run here 2 times") explains the
+     symptom rather than what to do about it. */
+  else if (quarantined)
+    msg($('otaMsg'),
+        `${o.failed_version} has been installed ${o.failed_count} times and never `
+        + `survived its self-test, so automatic checks now skip it. Check for updates `
+        + `retries it anyway — worth doing once if the cause was a bad upload rather `
+        + `than a bad build.`, 'warn');
+}
+
+/* Fetched separately from /api/status: a crash dump does not change while the page is
+   open, so there is no reason to carry it in a document that polls every 700 ms during
+   a download. */
+let crashLoaded = false;
+async function refreshCrash(){
+  if (crashLoaded) return;
+  crashLoaded = true;
+  let c;
+  try { c = await api('/api/coredump'); } catch (e) { return; }
+  if (!c || !c.present){ $('crashPanel').classList.add('hide'); return; }
+  $('crashPanel').classList.remove('hide');
+  rows($('crashRows'), [
+    ['Task',    c.task || '—'],
+    ['PC',      c.pc],
+    ['Reason',  c.reason || '—'],
+    ['Size',    (c.size/1024).toFixed(1) + ' KiB'],
+    ['Build',   c.elf_sha256 ? c.elf_sha256.slice(0,16) + '…' : null],
+  ]);
+  msg($('crashMsg'),
+      'A panic was recorded and stored in flash. It survives reboots and updates, so this '
+      + 'may be from a build that is no longer running — check the build id above. '
+      + (c.downloadable
+           ? 'Download it and run esp-coredump against the matching .elf.'
+           : 'The raw dump is not served over HTTP in this build; read it over serial, or '
+             + 'enable CONFIG_APP_HTTPD_COREDUMP_DOWNLOAD if this LAN is yours.'), 'warn');
+  $('crashDl').classList.toggle('hide', !c.downloadable);
+}
+
+$('crashErase').onclick = async () => {
+  if (!confirm('Erase the stored crash dump? Only one is kept, and the first crash after '
+             + 'an erase is the one recorded.')) return;
+  try{
+    await api('/api/coredump/erase', {method:'POST'});
+    crashLoaded = false;
+    $('crashPanel').classList.add('hide');
+    msg($('actionMsg'), 'Crash dump erased. The next panic will be recorded.', 'ok');
+  }catch(e){ msg($('actionMsg'), e.message, 'err'); }
+};
+
+function reportJoin(s){
+  const el = $('setupMsg');
+  const r = s.net.prov_result;
+  if (r === 'pending')      { msg(el, 'Joining ' + s.net.ssid + '…', 'warn'); return; }
+  joining = false;
+  $('join').disabled = false;
+  if (r === 'ok' && s.net.sta_connected)
+    msg(el, `Connected to ${s.net.ssid} as ${s.net.ip}. This setup network will close `
+          + `shortly — reconnect your phone to ${s.net.ssid} and open http://${s.net.ip}/`, 'ok');
+  else if (r === 'bad_password') msg(el, 'Wrong password for that network.', 'err');
+  else if (r === 'not_found')    msg(el, 'That network was not found. Move closer, or try again.', 'err');
+  else                           msg(el, 'Could not join. Check the password and try again.', 'err');
+}
+
+async function scan(){
+  const sel = $('ssid');
+  sel.innerHTML = '<option value="">Scanning…</option>';
+  try{
+    const r = await api('/api/scan');
+    sel.innerHTML = '';
+    for (const n of r.networks){
+      const o = document.createElement('option');
+      o.value = n.ssid;
+      o.textContent = `${n.ssid}  (${n.rssi} dBm${n.open ? ', open' : ''})`;
+      sel.appendChild(o);
+    }
+    const other = document.createElement('option');
+    other.value = '__manual__'; other.textContent = 'Other / hidden network…';
+    sel.appendChild(other);
+    sel.dataset.loaded = '1';
+    if (!r.networks.length) msg($('setupMsg'), 'No networks found. Try rescanning.', 'warn');
+  }catch(e){
+    sel.innerHTML = '<option value="__manual__">Other / hidden network…</option>';
+    msg($('setupMsg'), 'Scan failed: ' + e.message, 'err');
+  }
+}
+
+$('ssid').onchange = () =>
+  $('ssidManual').classList.toggle('hide', $('ssid').value !== '__manual__');
+
+$('rescan').onclick = scan;
+
+$('join').onclick = async () => {
+  const sel = $('ssid').value;
+  const ssid = sel === '__manual__' ? $('ssidManual').value.trim() : sel;
+  if (!ssid){ msg($('setupMsg'), 'Choose or type a network name.', 'err'); return; }
+  $('join').disabled = true;
+  try{
+    await api('/api/provision', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ssid, password: $('pass').value})
+    });
+    joining = true;
+    msg($('setupMsg'), 'Joining ' + ssid + '…', 'warn');
+  }catch(e){
+    $('join').disabled = false;
+    msg($('setupMsg'), e.message, 'err');
+  }
+};
+
+$('led').onclick = async () => {
+  try{
+    /* Held manually until explicitly released, so the status pattern cannot quietly
+       overwrite what the button did. */
+    const r = state && state.led.manual
+      ? await api('/api/led', {method:'POST', headers:{'Content-Type':'application/json'},
+                               body: JSON.stringify({mode:'auto'})})
+      : await api('/api/led', {method:'POST'});
+    msg($('actionMsg'),
+        r.manual ? `LED held ${r.on ? 'on' : 'off'}. Press again to return it to the `
+                   + `status pattern.`
+                 : `LED released — showing status "${r.status}" again.`, 'ok');
+    refresh();
+  }catch(e){ msg($('actionMsg'), e.message, 'err'); }
+};
+
+$('saveLoc').onclick = async () => {
+  try{
+    await api('/api/location', {
+      method: 'POST',
+      body: JSON.stringify({
+        latitude:  $('lat').value.trim(),
+        longitude: $('lon').value.trim(),
+        place:     $('place').value.trim(),
+      }),
+    });
+    /* The device validates and says what it rejected; the message is its wording, not a
+     * second copy of the rules here that could drift out of step with it. */
+    msg($('panelMsg'), 'Saved. It applies at the next fetch.', 'ok');
+    refresh();
+  }catch(e){ msg($('panelMsg'), e.message, 'err'); }
+};
+
+$('redraw').onclick = async () => {
+  try{
+    await api('/api/refresh', {method:'POST'});
+    msg($('panelMsg'), 'Redraw requested. A refresh takes about half a minute.', 'ok');
+  }catch(e){
+    /* 429 is the panel's own three-minute limit, not a failure. Say so plainly: the
+     * alternative teaches people that the button is broken and to press it harder. */
+    msg($('panelMsg'), e.message, 'err');
+  }
+};
+
+$('ota').onclick = async () => {
+  try{
+    await api('/api/ota/check', {method:'POST'});
+    clearMsg($('actionMsg'));
+    refresh();          /* surface the Update panel immediately, not on the next poll */
+  }catch(e){ msg($('actionMsg'), e.message, 'err'); }
+};
+
+$('restart').onclick = async () => {
+  if (!confirm('Restart this device now?')) return;
+  try{
+    await api('/api/restart', {method:'POST'});
+    msg($('actionMsg'), 'Restarting. This page will reconnect on its own.', 'warn');
+  }catch(e){ msg($('actionMsg'), e.message, 'err'); }
+};
+
+async function refresh(){
+  try{
+    render(await api('/api/status'));
+    $('sub').style.opacity = 1;
+  }catch(e){
+    /* A device that is rebooting, or an AP that just went away. Fade rather than
+       replace the page: the last known values are still the useful ones. */
+    $('sub').style.opacity = .4;
+  }
+}
+refresh();
+let timer = setInterval(refresh, 2000);
+function setPace(ms){
+  if (timer._ms === ms) return;
+  clearInterval(timer);
+  timer = setInterval(refresh, ms);
+  timer._ms = ms;
+}
+</script>
+</body>
+</html>

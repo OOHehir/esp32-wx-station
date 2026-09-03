@@ -1,0 +1,105 @@
+# Defaults common to every target. Per-chip settings belong in
+# sdkconfig.defaults.<target>, which ESP-IDF loads on top of this file.
+#
+# Nothing chip-specific may appear here (PLAN §1a).
+
+# --- Partition table -------------------------------------------------------
+# Flash size, not chip, picks the table. 4 MB is the conservative default; boards
+# with more flash override both lines in sdkconfig.defaults.<target>.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_4mb.csv"
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+
+# --- Application version ---------------------------------------------------
+# PROJECT_VER is set from `git describe` in the top-level CMakeLists.txt; make sure
+# nothing else claims to own the version string.
+CONFIG_APP_PROJECT_VER_FROM_CONFIG=n
+
+# --- Build -----------------------------------------------------------------
+# Optimise for size: two app slots in 4 MB is the binding constraint, not CPU time.
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+
+# --- Logging ---------------------------------------------------------------
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y
+CONFIG_LOG_COLORS=y
+
+# --- FreeRTOS / main task --------------------------------------------------
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=4096
+
+# --- Wi-Fi -----------------------------------------------------------------
+# The template runs APSTA during the provisioning fallback (PLAN §4b), so both
+# interfaces must be built in.
+CONFIG_ESP_WIFI_SOFTAP_SUPPORT=y
+
+# --- HTTP server -----------------------------------------------------------
+# max_open_sockets is set in code; this only lifts the ceiling for long URLs, which
+# the provisioning form needs (an SSID with spaces url-encodes generously).
+CONFIG_HTTPD_MAX_REQ_HDR_LEN=1024
+CONFIG_HTTPD_MAX_URI_LEN=512
+
+# --- lwIP ------------------------------------------------------------------
+# The captive-portal DNS responder and the status page both want sockets.
+CONFIG_LWIP_MAX_SOCKETS=10
+CONFIG_LWIP_SO_RCVBUF=y
+
+# Two SNTP slots: one for a DHCP-supplied server, one for the configured fallback.
+# The IDF default of 1 leaves no room for both, and app_net indexes the second slot.
+CONFIG_LWIP_SNTP_MAX_SERVERS=2
+
+# Required before esp_netif_sntp can accept server_from_dhcp. Without it, SNTP init
+# fails outright with ESP_ERR_INVALID_ARG -- so the device never gets the time, and the
+# symptom only appears later as a TLS handshake failure.
+CONFIG_LWIP_DHCP_GET_NTP_SRV=y
+
+# --- NVS -------------------------------------------------------------------
+CONFIG_NVS_ASSERT_ERROR_CHECK=n
+
+# --- Crash dumps -----------------------------------------------------------
+# PLAN §4 gave app_diag "core dump" as a responsibility from the start. Local, to a
+# flash partition -- not ESP Insights, which is a cloud service and would undo the
+# no-cloud premise of the whole design (PLAN §5).
+#
+# ESP_COREDUMP_DATA_FORMAT_ELF and ESP_COREDUMP_CHECKSUM_SHA256 used to belong here and
+# do not exist in v6.0 -- ELF and SHA-256 are simply what it does now. Setting them was
+# harmless and completely inert, and the build says so in a line nobody reads:
+#   NOTE: unknown kconfig symbol 'ESP_COREDUMP_DATA_FORMAT_ELF' assigned to 'y'
+# A config line that does nothing is worse than no line, because it reads as a decision.
+CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
+# Task stacks and TCBs only. Capturing all of DRAM as well produces a dump far larger
+# than the 64 KB partition, and the stacks are what actually explain a crash.
+CONFIG_ESP_COREDUMP_CAPTURE_DRAM=n
+
+# --- Rollback --------------------------------------------------------------
+# The whole point of the OTA design (PLAN §4). A freshly installed image boots in
+# ESP_OTA_IMG_PENDING_VERIFY and the bootloader puts the previous one back on the next
+# reset unless app_ota's self-test confirms it. Without this, one bad build that boots
+# badly is a site visit.
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+
+# Anti-rollback stays OFF: it burns an eFuse counter and is irreversible (PLAN §4).
+# CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK is not set
+
+# --- Signed images ---------------------------------------------------------
+# Signature verification on update, without hardware secure boot: cheap, reversible, and
+# it is what stops a compromised file server from installing anything it likes. The
+# manifest's sha256 is integrity only -- it travels with the image, from the same host.
+#
+# The bootloader is NOT locked down and no eFuse is burned. Secure boot v2 and flash
+# encryption remain a deliberate, documented production step (PLAN §4).
+#
+# Two consequences worth knowing before you turn this on:
+#   - Without hardware secure boot the trusted key is taken from the *running* app's own
+#     signature block. So the first signed image has to arrive over serial; an unsigned
+#     device cannot OTA its way into signing, and will refuse the update with
+#     "No signatures were found for the running app".
+#   - A signing key is now required at build time. cmake/check_signing_key.cmake fails
+#     the configure step with the exact command if it is missing.
+CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=y
+CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT=y
+CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES=y
+# RSA-3072 (secure boot v2 scheme) covers every target this template builds for except a
+# pre-ECO3 classic ESP32, which has only the v1 ECDSA scheme and therefore a different
+# key -- see sdkconfig.defaults.esp32. The scheme follows the chip, so the key path is a
+# per-target setting like any other (PLAN §1a).
+CONFIG_SECURE_BOOT_SIGNING_KEY="keys/app_signing_rsa3072.pem"

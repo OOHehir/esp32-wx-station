@@ -1,0 +1,72 @@
+# Container Manager project for the DS225+.
+#
+# Deploy path on the NAS: /volume1/docker/esp-ota
+# Container Manager -> Project -> Create -> set path, upload this file.
+
+services:
+  ota:
+    image: nginx:stable-alpine
+    container_name: esp-ota-nginx
+    restart: unless-stopped
+    ports:
+      # Host 8443 -> container 8443. Avoids DSM's 80/443/5000/5001.
+      - "8443:8443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs/server.crt:/etc/nginx/certs/server.crt:ro
+      - ./certs/server.key:/etc/nginx/certs/server.key:ro
+      - ./firmware:/srv/firmware:ro
+    tmpfs:
+      # The stock nginx image writes its cache and pid here; tmpfs keeps the
+      # rest of the filesystem read-only.
+      - /var/cache/nginx
+      - /var/run
+    read_only: true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "--no-check-certificate", "https://127.0.0.1:8443/healthz"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # PLAN §8. Optional: nothing in the OTA path depends on the broker being up, and
+  # firmware ships with MQTT compiled out by default. Comment this service out if you
+  # only want firmware hosting.
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: esp-ota-mqtt
+    restart: unless-stopped
+    ports:
+      # TLS only. There is deliberately no 1883 listener: a plaintext port on the same
+      # broker is an invitation to use it "just for testing" and never go back.
+      - "8883:8883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/passwd:/mosquitto/config/passwd:ro
+      # The same CA and server certificate nginx uses -- one trust anchor for the whole
+      # stack, so the device needs no second one embedded (PLAN §3).
+      - ./certs/ca.crt:/mosquitto/certs/ca.crt:ro
+      - ./certs/server.crt:/mosquitto/certs/server.crt:ro
+      - ./certs/server.key:/mosquitto/certs/server.key:ro
+      - ./mosquitto/data:/mosquitto/data
+    healthcheck:
+      # Publishing to $SYS is refused, so a successful *connect* is what is being tested.
+      test: ["CMD-SHELL", "mosquitto_sub -h 127.0.0.1 -p 8883 --cafile /mosquitto/certs/ca.crt -t '$$SYS/broker/version' -C 1 -W 3 -u \"$$MQTT_USER\" -P \"$$MQTT_PASS\" || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    environment:
+      # Only used by the healthcheck above; the broker itself reads passwd.
+      MQTT_USER: "${MQTT_USER:-esp-ota}"
+      MQTT_PASS: "${MQTT_PASS:-}"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

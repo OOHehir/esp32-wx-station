@@ -1,0 +1,55 @@
+menu "app_led -- status LED"
+
+choice APP_LED_TYPE
+    prompt "Status LED type"
+    default APP_LED_TYPE_NONE
+    help
+        Devkits disagree about the status LED: a plain GPIO on some boards, an
+        addressable WS2812 on many ESP32-S3 and C6 kits, and the pin moves between
+        boards carrying the same chip. Set this in sdkconfig.defaults.<target>, never
+        in application code.
+
+config APP_LED_TYPE_NONE
+    bool "None -- build without a status LED"
+
+config APP_LED_TYPE_GPIO
+    bool "Plain GPIO"
+
+config APP_LED_TYPE_ADDRESSABLE
+    bool "Addressable (WS2812 over RMT)"
+    depends on SOC_RMT_SUPPORTED
+    help
+        Gated on the RMT peripheral rather than on a chip name, so a target without RMT
+        falls back to a build that simply has no addressable option -- not to a build
+        error.
+
+endchoice
+
+# Both of the following are deliberately ungated. app_led.c reaches the xTaskCreate and
+# the "status LED on GPIO%d" log for every backend and relies on led_backend_present()
+# to return early when there is no LED -- a runtime guard, which does not stop the
+# compiler needing the macros. Gated on !APP_LED_TYPE_NONE they simply do not exist, and
+# the NONE build -- app_led's own Kconfig default -- fails to compile.
+config APP_LED_GPIO
+    int "Status LED GPIO number"
+    default 48
+
+config APP_LED_ACTIVE_LOW
+    bool "LED is active low"
+    default n
+    depends on APP_LED_TYPE_GPIO
+
+config APP_LED_BRIGHTNESS
+    int "Addressable LED brightness (1-255)"
+    range 1 255
+    default 24
+    depends on APP_LED_TYPE_ADDRESSABLE
+    help
+        Devkit WS2812s are painfully bright at full scale, and a status light does not
+        need to be.
+
+config APP_LED_TASK_STACK
+    int "LED task stack size"
+    default 2560
+
+endmenu

@@ -1,0 +1,90 @@
+menu "app_mqtt -- broker link (optional)"
+
+config APP_MQTT_ENABLE
+    bool "Enable the MQTT client"
+    default n
+    help
+        Off by default, and it should be: it needs a broker that may not exist, and
+        nothing else in the template depends on it. PLAN §8 lists it as an extra.
+
+        What it is actually for is pushing "check for an update now" to a whole fleet at
+        once, instead of waiting out each device's jittered six-hour poll.
+
+config APP_MQTT_BROKER_URI
+    string "Broker URI"
+    default "mqtts://nas.lan:8883"
+    depends on APP_MQTT_ENABLE
+    help
+        mqtts:// for TLS, which is what the broker in nas/docker-compose.yml serves and
+        what you should use. The host must then appear in the server certificate's SAN
+        list, exactly as with the OTA base URL.
+
+        mqtt:// also works, for an existing broker on a LAN you trust. Be clear about what
+        it costs: the username and password below cross the network in the clear on every
+        connect, and so does every command and every status message. The password is
+        already weak protection -- it is compiled into the image and shared by the whole
+        fleet -- and without TLS it is barely protection at all, so anyone on that network
+        can publish commands to your devices. The firmware logs a warning at boot when the
+        link is unencrypted rather than letting it pass unremarked.
+
+        The shipped broker has no 1883 listener, because a plaintext port on a broker you
+        control gets used "just for testing" and then stays.
+
+config APP_MQTT_USERNAME
+    string "Broker username"
+    default "esp-ota"
+    depends on APP_MQTT_ENABLE
+
+config APP_MQTT_PASSWORD
+    string "Broker password"
+    default ""
+    depends on APP_MQTT_ENABLE
+    help
+        From tools/gen_mqtt_user.sh. This is build-time configuration shared by every
+        device on the broker, not a per-device secret -- anyone who can read an image can
+        read it. Acceptable because what the broker controls is "check now", and the
+        update itself is signed and verified independently (PLAN §5). If MQTT ever
+        carries something that matters more, move to per-device client certificates.
+
+        Empty means the client connects with no credentials, which the shipped
+        mosquitto.conf refuses.
+
+config APP_MQTT_TOPIC_PREFIX
+    string "Topic prefix"
+    default "esp-ota"
+    depends on APP_MQTT_ENABLE
+    help
+        Topics are <prefix>/<device-id>/{status,online,cmd} plus <prefix>/all/cmd for the
+        whole fleet. Set it to the project name so one broker can carry several projects,
+        the same way one NAS carries several projects' firmware.
+
+config APP_MQTT_STATUS_INTERVAL_S
+    int "Seconds between status publishes"
+    default 60
+    range 5 3600
+    depends on APP_MQTT_ENABLE
+    help
+        Status is also published immediately on connect and whenever something
+        interesting changes, so this is the heartbeat rather than the only signal.
+
+config APP_MQTT_KEEPALIVE_S
+    int "MQTT keepalive, seconds"
+    default 60
+    range 10 600
+    depends on APP_MQTT_ENABLE
+    help
+        How long the broker waits before declaring the device gone and publishing its
+        last will. Too high and a dashboard shows a dead device as online for minutes;
+        too low and a device on poor Wi-Fi flaps.
+
+config APP_MQTT_ALLOW_RESTART
+    bool "Accept restart commands from the broker"
+    default y
+    depends on APP_MQTT_ENABLE
+    help
+        Anyone who can publish to the command topic can reboot every device at once.
+        That is the same trade the web UI already makes (PLAN §7) and the broker at least
+        requires a password -- but a fleet-wide reboot is a bigger blast radius than one
+        board, so it is worth being able to compile out while leaving "check now" alone.
+
+endmenu

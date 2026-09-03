@@ -1,0 +1,46 @@
+menu "app_btn -- the panel buttons"
+
+config APP_BTN_ENABLE
+    bool "Read the panel's buttons"
+    default y
+    help
+        Three of the Inky Impression's four tactile buttons (PLAN 3b). Harmless with
+        nothing wired: an unconnected pin sits high on its pull-up, which is what an
+        unpressed button reads as.
+
+config APP_BTN_A_GPIO
+    int "Button A"
+    default 7
+    help
+        XIAO D5, Pi header 29.
+
+config APP_BTN_B_GPIO
+    int "Button B"
+    default 21
+    help
+        XIAO D6, Pi header 31. Ordinary GPIO on this board only because the console is on
+        USB Serial/JTAG rather than UART0 -- see sdkconfig.defaults.esp32c3.
+
+config APP_BTN_C_GPIO
+    int "Button C"
+    default 20
+    help
+        XIAO D7, Pi header 36. As with D6, free only because UART0 is not the console.
+
+config APP_BTN_DEBOUNCE_MS
+    int "Debounce (ms)"
+    default 40
+    help
+        A press must read low for this long before it counts. Polled rather than
+        interrupt-driven: a button pressed by a finger is a slow event, the panel task is
+        the only thing with deadlines, and a poll cannot storm the scheduler the way a
+        bouncing edge on an ISR can.
+
+config APP_BTN_LONG_PRESS_MS
+    int "Long press (ms)"
+    default 1500
+    help
+        Held at least this long reports as a long press. Used for the actions that should
+        not happen by brushing against the panel.
+
+endmenu

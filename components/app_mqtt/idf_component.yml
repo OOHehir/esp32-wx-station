@@ -1,0 +1,5 @@
+dependencies:
+  # esp-mqtt was part of ESP-IDF core up to v5.x. In v6.0 it moved out to the registry,
+  # the same way cJSON did -- see components/app_httpd/idf_component.yml.
+  espressif/mqtt:
+    version: "^1.1.0"

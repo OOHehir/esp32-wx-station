@@ -1,0 +1,46 @@
+menu "app_display -- when to redraw"
+
+config APP_DISPLAY_BRINGUP_BAR
+    bool "Draw the seven-colour bar at boot"
+    default n
+    help
+        The phase 2 bring-up frame: seven vertical bands straight through the driver,
+        held for half a minute so the band order can be checked against the palette
+        app_gfx defines.
+
+        Off by default. It is the right first thing to put on a newly wired panel and the
+        wrong thing to put on a working one -- 26 seconds of refresh on every boot, for a
+        picture that is then immediately replaced, which is the panel wear PLAN 3e exists
+        to avoid.
+
+config APP_DISPLAY_TICK_MINUTES
+    int "Minutes between redraws"
+    default 60
+    help
+        How often the panel re-renders and, when the weather client is built in, fetches.
+
+        It lives here rather than with app_wx because it is the display's clock: a device
+        with no weather client still ticks, to move a forecast from fresh to stale and to
+        notice that it no longer starts at the current hour.
+
+        Sixty is chosen by what is on the other end. Open-Meteo's free tier is fair use,
+        under 10 000 requests a day against hourly's 24, and the forecast itself only
+        changes a few times an hour upstream -- so fetching faster buys nothing and
+        spends somebody else's bandwidth. Ticks are aligned to the wall clock, so a
+        refresh lands on the hour rather than drifting by however long the last one took.
+
+config APP_DISPLAY_CLEAN_DAYS
+    int "Days between panel clean cycles"
+    default 7
+    range 0 90
+    help
+        A clean cycle flushes the panel through its colour codes and takes about half a
+        minute per pass. E Ink recommend it periodically on an ACeP panel to keep the
+        pigments healthy; PLAN 3e schedules it weekly.
+
+        Zero disables it. The clock is wall time and the last run is kept in NVS, so a
+        device that reboots daily still cleans weekly rather than never -- the obvious
+        implementation, an uptime counter, gives a panel that is never cleaned on any
+        device that restarts more often than the interval.
+
+endmenu

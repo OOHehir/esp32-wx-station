@@ -1,0 +1,15 @@
+menu "Project"
+
+config APP_PROJECT_NAME_SLUG
+    string "Project slug"
+    default "wx-station"
+    help
+        Used for the mDNS hostname and the provisioning AP SSID, both of which become
+        `<slug>-<last 3 MAC bytes>`. Must be a valid DNS label: lowercase letters,
+        digits and hyphens only.
+
+        One of the three things to change when you copy this template into a new
+        project -- the others are project() in the top-level CMakeLists.txt and
+        APP_CFG_AP_PASS_SALT. See "Forking this template" in README.md.
+
+endmenu

@@ -1,0 +1,26 @@
+menu "app_cfg -- device configuration"
+
+config APP_CFG_NAMESPACE
+    string "NVS namespace for application configuration"
+    default "appcfg"
+    help
+        Every persistent setting the template owns lives in this one namespace, so a
+        factory reset has a single, auditable definition.
+
+config APP_CFG_AP_PASS_SALT
+    string "SoftAP passphrase salt"
+    default "6cm63gj2OhKZWPbKZE1nSL7N"
+    help
+        Mixed with the device MAC to derive the provisioning AP passphrase. Change it
+        for your own fleet: with the default, anyone who knows this project can compute
+        the passphrase of any device from its MAC, which the SSID advertises.
+
+config APP_CFG_AP_PASS_FIXED
+    string "Fixed SoftAP passphrase (empty = derive per device)"
+    default ""
+    help
+        Leave empty in anything you ship. A fixed passphrase is convenient on a bench
+        where you provision the same board repeatedly and would rather not read the
+        boot log every time.
+
+endmenu

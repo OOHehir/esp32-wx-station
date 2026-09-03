@@ -1,0 +1,41 @@
+menu "app_trust -- who the device believes"
+
+choice APP_TRUST
+    prompt "How TLS servers are trusted"
+    default APP_TRUST_PRIVATE_CA
+    help
+        PLAN §3's design fork, and the only decision here that is hard to change once
+        devices are deployed -- a device trusts what its firmware says it trusts.
+
+        It applies to every TLS connection the template makes: the OTA server and, when
+        it is enabled, the MQTT broker. One anchor for the whole device.
+
+config APP_TRUST_PRIVATE_CA
+    bool "A private CA embedded in the firmware"
+    help
+        The default, and the right answer for a NAS on your own LAN. tools/gen_certs.sh
+        makes the CA and the server certificate; server_certs/ca_cert.pem is embedded at
+        build time.
+
+        The CA is embedded, never the leaf, so the server certificate can be re-issued
+        without reflashing anything. It works with no route to the internet, which is the
+        situation these devices are usually in. The cost is that the CA's own expiry
+        eventually needs an OTA, and that a device will trust nothing else -- including a
+        perfectly valid public certificate.
+
+config APP_TRUST_CERT_BUNDLE
+    bool "The ESP-IDF root certificate bundle"
+    select MBEDTLS_CERTIFICATE_BUNDLE
+    help
+        Trust the public root CAs instead, the way a browser does. Choose this when the
+        server has a certificate from a public issuer -- Let's Encrypt via DSM, say, which
+        DSM will also renew on its own.
+
+        Rotation becomes somebody else's problem, at the cost of about 64 KB of flash and
+        of needing a name that actually resolves. There is no pinning: any certificate any
+        public CA issues for that name is accepted, which is a different and larger trust
+        boundary than one CA you made yourself.
+
+endchoice
+
+endmenu

@@ -1,0 +1,65 @@
+menu "app_httpd -- device web UI"
+
+config APP_HTTPD_ENABLE
+    bool "Serve the device status page and provisioning portal"
+    default y
+    help
+        This is an unauthenticated control surface: anyone on the LAN can reboot the
+        board or make it check for an update. Acceptable on a lab network, not on a
+        shared one. Turn it off, or put a shared secret in front of it, before anything
+        ships (PLAN §7).
+
+config APP_HTTPD_PORT
+    int "HTTP port"
+    default 80
+    depends on APP_HTTPD_ENABLE
+
+config APP_HTTPD_MAX_SOCKETS
+    int "Maximum simultaneous connections"
+    default 4
+    range 1 12
+    depends on APP_HTTPD_ENABLE
+    help
+        Kept low on purpose. Per-connection server buffers sit alongside mbedTLS's
+        during an OTA download, and on a low-RAM part that is precisely when both are
+        largest (PLAN §7). Test the update path with the page open in a browser.
+
+config APP_HTTPD_STACK
+    int "HTTP server task stack size"
+    default 5120
+    depends on APP_HTTPD_ENABLE
+
+config APP_HTTPD_CAPTIVE_PORTAL
+    bool "Answer captive-portal probes and hijack DNS while the AP is up"
+    default y
+    depends on APP_HTTPD_ENABLE
+    help
+        Right, and the login sheet pops by itself when a phone joins the provisioning
+        AP. Wrong, and the user has to somehow know to browse to 192.168.4.1. The DNS
+        responder binds only to the AP interface and only while the AP is up, so it
+        never answers for clients on your real network.
+
+config APP_HTTPD_SCAN_MAX
+    int "Maximum networks listed by the portal"
+    default 20
+    range 4 40
+    depends on APP_HTTPD_ENABLE
+
+config APP_HTTPD_COREDUMP_DOWNLOAD
+    bool "Allow downloading the raw crash dump over HTTP"
+    default n
+    depends on APP_HTTPD_ENABLE
+    help
+        The status page always *reports* a stored crash dump -- which task, which program
+        counter, the panic reason. That is diagnosis, and it gives nothing away.
+
+        This option additionally serves the raw dump at GET /api/coredump.bin so it can be
+        fed to esp-coredump on a workstation. A core dump is a copy of task stacks, so a
+        crash that happened during Wi-Fi work can contain the network passphrase, and this
+        server has no authentication at all (PLAN §4a). Default off, and it should stay off
+        anywhere the LAN is not yours.
+
+        With it off, a dump is still recoverable over a serial cable:
+            esptool read-flash <coredump offset> <size> dump.bin
+
+endmenu
