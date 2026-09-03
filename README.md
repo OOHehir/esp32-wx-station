@@ -119,7 +119,7 @@ be iterated against a file rather than against a 30-second panel refresh.
 
 ```bash
 ./tools/run_tests.sh
-# → 447 checks, 0 failed
+# → 480 checks, 0 failed
 # → all tests passed
 ```
 
