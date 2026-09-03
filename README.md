@@ -9,17 +9,7 @@ The panel shows the current temperature & what it feels like, today's sunrise & 
 the twelve-hour high & low, & three stacked charts — temperature, rainfall against the
 chance of rain, & sunlight — over a strip that says which of those hours are night.
 
-**Status:** phases 0–5 complete & verified on the bench board. Design, rationale & the
-full test record are in [PLAN.md](PLAN.md); this file is how to run the thing.
-
-Known gaps, because they are the sort that quietly become permanent:
-
-- **Buttons B & C are untested.** Button A is wired & confirmed on hardware; the other two
-  are configured & have never had a wire on them
-- **The week-long soak has not been run.** "It works" currently means "it worked for the
-  length of a bench session". The failure it would exercise — a Wi-Fi drop at 3 a.m., a
-  DHCP lease change, an SNTP step, a panel left alone for 168 hours — has not been seen
-- **WMO weather icons are not drawn.** The codes are fetched & parsed; nothing renders them
+![display](images/display.jpg)
 
 ## Hardware
 
@@ -35,7 +25,7 @@ GPIO 8, which is a strapping pin on this chip.
 ## Requirements
 
 - ESP-IDF v6.0.2 (v6.0.x). Earlier branches will not build: several APIs moved in v6
-- A host serving static files over HTTPS, for updates. Any static file server will do;
+- For OTA updates a host serving static files over HTTPS, for updates. Any static file server will do;
   [`nas/README.md`](nas/README.md) documents a Synology running `nginx` in a container
 - Linux or macOS. Windows via WSL2, untested here
 
