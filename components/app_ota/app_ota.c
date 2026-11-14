@@ -148,8 +148,10 @@ static void publish_record(void)
 esp_err_t ota_build_manifest_url(char *out, size_t out_len)
 {
     const esp_app_desc_t *desc = esp_app_get_description();
-    int n = snprintf(out, out_len, "%s/%s/%s/manifest.json",
-                     CONFIG_APP_OTA_BASE_URL, desc->project_name, CONFIG_IDF_TARGET);
+    /* No chip level: this project ships for the ESP32-C3 only. The manifest still names
+     * the chip, and the update policy refuses one written for another. */
+    int n = snprintf(out, out_len, "%s/%s/manifest.json",
+                     CONFIG_APP_OTA_BASE_URL, desc->project_name);
     return (n > 0 && (size_t)n < out_len) ? ESP_OK : ESP_ERR_INVALID_SIZE;
 }
 

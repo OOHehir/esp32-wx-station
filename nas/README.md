@@ -117,7 +117,7 @@ openssl s_client -connect nas.lan:8443 -CAfile nas/certs/ca.crt -tls1_2 </dev/nu
 ## Publishing firmware
 
 ```sh
-NAS_HOST=admin@nas.lan ./tools/publish.sh
+NAS_FIRMWARE_DIR=/media/dsCIFS/public/ota ./tools/publish.sh
 ```
 
 
@@ -142,12 +142,14 @@ configuration.
 Layout on the server:
 
 ```
-firmware/<project>/<chip>/manifest.json
-firmware/<project>/<chip>/<version>/<project>.bin
+public/ota/<project>/manifest.json
+public/ota/<project>/<version>/<project>.bin
 ```
 
-Per-chip manifests mean one server can feed a mixed fleet, & a device only ever
-fetches the small manifest for its own project & target.
+nginx serves the NAS's `public` share (`/volume1/public/ota`), so publishing is a copy onto
+that share as mounted here over CIFS: `NAS_FIRMWARE_DIR=/media/dsCIFS/public/ota`. The
+manifest names the chip, & a device refuses one written for another; the path has no chip
+level because this project ships for the ESP32-C3 only.
 
 ## Notes & gotchas
 

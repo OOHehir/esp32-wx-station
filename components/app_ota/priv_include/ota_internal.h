@@ -6,7 +6,7 @@
 #include "app_ota.h"
 #include "esp_err.h"
 
-/* <base>/<project>/<chip>/manifest.json -- exactly the layout tools/publish.sh writes. */
+/* <base>/<project>/manifest.json -- exactly the layout tools/publish.sh writes. */
 esp_err_t ota_build_manifest_url(char *out, size_t out_len);
 
 /* Fetch a manifest into `buf`. Small, bounded, read in one go. */

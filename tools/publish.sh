@@ -3,17 +3,16 @@
 #
 #   ./tools/publish.sh [build-dir]
 #
-# Everything -- project name, version, and target chip -- is read from the build
-# output, so this script is chip-agnostic: build for any target and publish the
-# same way. Nothing here needs to know which chip you chose.
+# Project name, version and target chip are read from the build output.
 #
-# Layout produced on the server:
-#   firmware/<project>/<chip>/manifest.json
-#   firmware/<project>/<chip>/<version>/<project>.bin
+# Layout produced on the server. The chip goes into the manifest, which a device
+# checks, but not into the path: this project ships for one chip.
+#   <dir>/<project>/manifest.json
+#   <dir>/<project>/<version>/<project>.bin
 #
 # Destination is either a local path or a remote rsync target:
-#   NAS_FIRMWARE_DIR=/volume1/docker/esp-ota/firmware   (local mount)
-#   NAS_HOST=admin@nas.lan                              (rsync over ssh)
+#   NAS_FIRMWARE_DIR=/media/dsCIFS/public/ota   (the NAS's public share, mounted here)
+#   NAS_HOST=user@nas                           (rsync over ssh)
 
 set -euo pipefail
 
@@ -46,6 +45,15 @@ sha256="$(sha256sum "$bin_path" | cut -d' ' -f1)"
 size="$(stat -c%s "$bin_path")"
 base_url="${OTA_BASE_URL:-https://nas.lan:8443/fw}"
 
+# The path has no chip level, so a build for any other chip would replace this
+# project's only manifest & leave every deployed board without updates.
+expected_chip="esp32c3"
+if [[ "$chip" != "$expected_chip" ]]; then
+    echo "error: this build targets $chip; $project ships for $expected_chip only." >&2
+    echo "       Run: idf.py set-target $expected_chip && idf.py build" >&2
+    exit 1
+fi
+
 echo "==> $project $version ($chip), $((size / 1024)) KiB"
 
 # Say out loud whether this image is signed. A device built with signing enabled refuses
@@ -66,7 +74,7 @@ esac
 # Stage the release locally, then ship the whole tree in one go.
 staging="$(mktemp -d)"
 trap 'rm -rf "$staging"' EXIT
-rel="$project/$chip"
+rel="$project"
 mkdir -p "$staging/$rel/$version"
 cp "$bin_path" "$staging/$rel/$version/$project.bin"
 

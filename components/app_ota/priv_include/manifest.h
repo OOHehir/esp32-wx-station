@@ -1,7 +1,7 @@
 /* The manifest tools/publish.sh writes:
  *
  *   { "project": "esp-ota", "chip": "esp32s3", "version": "v0.2.0",
- *     "url": "https://nas:8443/fw/esp-ota/esp32s3/v0.2.0/esp-ota.bin",
+ *     "url": "https://nas:8443/fw/esp32-wx-station/v0.2.0/esp32-wx-station.bin",
  *     "sha256": "...", "size": 882672, "mandatory": false }
  */
 #pragma once

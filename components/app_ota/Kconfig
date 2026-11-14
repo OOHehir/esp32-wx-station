@@ -9,7 +9,7 @@ config APP_OTA_BASE_URL
     default "https://nas.lan:8443/fw"
     depends on APP_OTA_ENABLE
     help
-        The device fetches <base>/<project>/<chip>/manifest.json, which is exactly the
+        The device fetches <base>/<project>/manifest.json, which is exactly the
         layout tools/publish.sh writes. Keep this in step with OTA_BASE_URL when you run
         that script, or devices will look somewhere nothing was published.
 

@@ -32,22 +32,23 @@ would take that build & then never recognise the real tag as an update. Hence th
 ## 2. Build & publish
 
 ```bash
-NAS_HOST=admin@nas.lan ./tools/publish.sh
+NAS_FIRMWARE_DIR=/media/dsCIFS/public/ota ./tools/publish.sh
 ```
 
 Where:
 
-- `NAS_HOST` is any target `rsync` accepts over ssh. Use `NAS_FIRMWARE_DIR` instead for a
-  path already mounted locally
+- `NAS_FIRMWARE_DIR` is the NAS's `public/ota` folder as mounted on this machine over
+  CIFS; the mount point is this machine's & yours may differ. `NAS_HOST=user@host`
+  instead copies over rsync & ssh
 - `OTA_BASE_URL` overrides the URL written into the manifest; it must match
   `CONFIG_APP_OTA_BASE_URL` in the firmware, or devices will look where nothing was published
 
 ```
-==> esp-ota v0.7.0 (esp32s3), 1028 KiB
+==> esp32-wx-station v0.7.0 (esp32c3), 1028 KiB
     signed: yes
-==> rsync -> admin@nas.lan:/volume1/docker/esp-ota/firmware
+==> copy -> /media/dsCIFS/public/ota
 ==> published
-    manifest: https://nas.lan:8443/fw/esp-ota/esp32s3/manifest.json
+    manifest: https://192.168.178.100:8443/fw/esp32-wx-station/manifest.json
     verified: the server returns this release (HTTP 200, v0.7.0)
 ```
 
@@ -116,7 +117,7 @@ anyway, you asked`.
 dials, or the server cannot read it. Check both from the publishing host:
 
 ```bash
-curl --cacert server_certs/ca_cert.pem https://nas.lan:8443/fw/esp-ota/esp32s3/manifest.json
+curl --cacert server_certs/ca_cert.pem https://192.168.178.100:8443/fw/esp32-wx-station/manifest.json
 ```
 
 A 403 rather than a 404 is a permissions problem, & the directory itself is the usual
