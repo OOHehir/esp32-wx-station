@@ -49,21 +49,21 @@ if APP_EPD_ENABLE
 
 config APP_EPD_SPI_HZ
     int "SPI clock (Hz)"
-    default 10000000
+    default 3000000
     help
         Pimoroni's driver uses 3 MHz on this panel and Soldered's uses 10 MHz on the same
-        controller. 3 MHz was the conservative start; 10 MHz is what this board actually
-        runs, measured rather than assumed.
+        controller. Both refreshed correctly on the bench board over a dozen jumper wires:
+        the 134 400-byte transfer takes 375 ms at 3 MHz and 118 ms at 10 MHz.
 
-        Measured on the bench board with a dozen jumper wires, which is the worst case a
-        ribbon will ever be: the 134 400-byte transfer takes 375 ms at 3 MHz and 118 ms at
-        10 MHz, and both refresh correctly. PLAN 3c predicted 360 and 110.
+        3 MHz is the default because a deployed board at 10 MHz intermittently showed a
+        garbled lower part of the picture, cleared by a power cycle. That is the
+        signature of a clock edge gained or lost partway through the upload, but the
+        cause is inferred, not measured. The quarter-second saved at 10 MHz is nothing
+        against a 26-second refresh.
 
-        It is worth keeping in proportion. The saving is about a quarter of a second
-        against a refresh that takes 26 seconds of physics, so this is not why the panel
-        is slow and never will be. Drop back to 3000000 if a longer or untidier ribbon
-        starts producing corrupt frames -- the symptom would be a picture with the right
-        colours in the wrong places, not a blank panel.
+        Going lower buys little: ringing comes from edge speed, which the clock does not
+        change, and a slower upload holds CS low for longer. SCLK and MOSI are set to the
+        weakest drive strength in app_epd_init() for that reason.
 
 endif
 

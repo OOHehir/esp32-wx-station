@@ -514,6 +514,13 @@ esp_err_t app_epd_init(void)
     };
     ESP_ERROR_CHECK(spi_bus_initialize(SPI2_HOST, &bus, SPI_DMA_CH_AUTO));
 
+    /* Weakest drive (~5 mA) for slower edges. On jumper wires a fast edge
+     * can ring past the threshold twice, and with CS held low the panel counts the extra
+     * edge as a bit, shifting the rest of the frame. Set after spi_bus_initialize(),
+     * which configures these pins. */
+    ESP_ERROR_CHECK(gpio_set_drive_capability(CONFIG_APP_EPD_SCLK_GPIO, GPIO_DRIVE_CAP_0));
+    ESP_ERROR_CHECK(gpio_set_drive_capability(CONFIG_APP_EPD_MOSI_GPIO, GPIO_DRIVE_CAP_0));
+
     spi_device_interface_config_t dev = {
         .clock_speed_hz = CONFIG_APP_EPD_SPI_HZ,
         .mode = 0,
